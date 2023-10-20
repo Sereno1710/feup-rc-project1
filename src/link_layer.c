@@ -102,19 +102,13 @@ int llopen(LinkLayer connectionParameters)
             alarmEnabled = TRUE;
             state = START;
 
-            if (write(fd, packet, packet_size))
-                alarmEnabled = TRUE;
-
             puts("llopen: Waiting for UA frame");
             if (read_frame(fd, RX_ADD, UA) == 0)
             {
                 puts("llopen: Received UA frame");
-                alarm(timeout);
-                alarmEnabled = TRUE;
+                alarm(0);
+                alarmEnabled = FALSE;
                 state = START;
-
-                if (write(fd, packet, packet_size))
-                    alarmEnabled = FALSE;
                 return 0;
             }
             puts("llopen: Didn't receive UA frame");
