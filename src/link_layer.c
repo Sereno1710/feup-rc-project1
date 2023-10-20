@@ -190,7 +190,8 @@ int llwrite(const unsigned char *buf, int bufSize)
 
         while (alarmEnabled)
         {
-                }
+            // TODO -> Acabar
+        }
     }
 
     return 0;
@@ -204,6 +205,40 @@ int llread(unsigned char *packet)
     // TODO
     int after_esc = FALSE;
     unsigned char tx_buf;
+    int packet_size = 0;
+    state = START;
+
+    while (state != STOP)
+    {
+        if (read(fd, &tx_buf, 1) > 0)
+        {
+            switch (state)
+            {
+            case START:
+                puts("state: START");
+                if (tx_buf == FLAG)
+                    state = F;
+                break;
+            case F:
+                /* code */
+                break;
+            case A:
+                /* code */
+                break;
+            case C:
+                /* code */
+                break;
+            case BCC:
+                /* code */
+                break;
+            case DATA:
+                /* code */
+                break;
+            default:
+                break;
+            }
+        }
+    }
     return 0;
 }
 
