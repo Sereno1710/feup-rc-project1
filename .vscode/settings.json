@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "application_layer.h": "c"
+        "application_layer.h": "c",
+        "unistd.h": "c",
+        "string.h": "c"
     }
 }

@@ -10,6 +10,8 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <signal.h>
+#include <string.h>
+#include <unistd.h>
 
 typedef enum
 {
@@ -50,5 +52,11 @@ int llread(unsigned char *packet);
 // if showStatistics == TRUE, link layer should print statistics in the console on close.
 // Return "1" on success or "-1" on error.
 int llclose(int showStatistics);
+
+int read_frame(int fd, unsigned char addr, unsigned char ctrl);
+
+int get_llwrite_response(int fd, unsigned char *response);
+
+int write_frame(int fd, unsigned char A, unsigned char C);
 
 #endif // _LINK_LAYER_H_

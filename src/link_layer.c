@@ -11,6 +11,8 @@ LinkLayerRole role;
 int nRetransmissions;
 int timeout;
 int fd;
+struct termios oldtio;
+struct termios newtio;
 unsigned char frame_index = INF_FRAME_0;
 int message_received = 0;
 
@@ -40,9 +42,6 @@ int llopen(LinkLayer connectionParameters)
         perror(serialPort);
         exit(-1);
     }
-
-    struct termios oldtio;
-    struct termios newtio;
 
     // Save current port settings
     if (tcgetattr(fd, &oldtio) == -1)
@@ -177,7 +176,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         if (write(fd, frame, frame_size) == -1)
         {
             perror("error: error writting frame");
-            return 1;
+            return -1;
         }
 
         alarm(timeout);
@@ -207,7 +206,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     alarmEnabled = FALSE;
     free(frame);
     perror("llwrite: no response");
-    return 1;
+    return -1;
 }
 
 ////////////////////////////////////////////////
@@ -261,7 +260,7 @@ int llread(unsigned char *packet)
                     state = START;
                 break;
             case DATA:
-                puts("state: DATA");
+                // puts("state: DATA");
                 if (tx_buf == ESC)
                 {
                     after_esc = TRUE;
@@ -295,7 +294,7 @@ int llread(unsigned char *packet)
 
                         if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? RR0 : RR1) < 0)
                         {
-                            frame_index = (frame_index == INF_FRAME_0)? INF_FRAME_0 : INF_FRAME_1;
+                            frame_index = (frame_index == INF_FRAME_0) ? INF_FRAME_0 : INF_FRAME_1;
                             free(packet);
                             perror("llread: Can't send RR response");
                             return -1;
@@ -358,6 +357,13 @@ int llclose(int showStatistics)
         }
 
         puts("llclose: Sent UA frame");
+
+        if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+        {
+            perror("tcsetattr");
+            exit(-1);
+        }
+
         return 0;
     }
     else if (role == LlRx)
@@ -373,6 +379,13 @@ int llclose(int showStatistics)
             puts("error : Can't send DISC frame");
         }
         puts("llclose: Sent DISC frame");
+
+        if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+        {
+            perror("tcsetattr");
+            exit(-1);
+        }
+
         return 0;
     }
     return -1;
@@ -414,7 +427,7 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
             break;
         case C:
             puts("state: C");
-            if ((rx_buf == addr ^ ctrl) & 0xFF)
+            if ((rx_buf == (addr ^ ctrl)) & 0xFF)
                 state = BCC;
             else if (rx_buf == FLAG)
                 state = F;
@@ -431,6 +444,7 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
         case STOP:
             puts("state: STOP");
             return 0;
+        case DATA:
         }
     }
     return 1;
@@ -466,7 +480,7 @@ int get_llwrite_response(int fd, unsigned char *response)
             if (rx_buf == RR0 || rx_buf == RR1 || rx_buf == REJ0 || rx_buf == REJ1)
             {
                 state = C;
-                response = rx_buf;
+                *response = rx_buf;
             }
             else if (rx_buf == FLAG)
                 state = F;
@@ -475,7 +489,7 @@ int get_llwrite_response(int fd, unsigned char *response)
             break;
         case C:
             puts("state: C");
-            if ((rx_buf == RX_ADD ^ *response) & 0xFF)
+            if ((rx_buf == (RX_ADD ^ *response)) & 0xFF)
                 state = BCC;
             else if (rx_buf == FLAG)
                 state = F;
@@ -494,6 +508,7 @@ int get_llwrite_response(int fd, unsigned char *response)
             alarm(0);
             alarmEnabled = FALSE;
             return 0;
+        case DATA:
         }
     }
     return 1;
