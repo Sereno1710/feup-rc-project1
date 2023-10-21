@@ -277,6 +277,7 @@ int llread(unsigned char *packet)
 
                         if(write_frame(fd, RX_ADD, frame_index == INF_FRAME_0? RR0 : RR1) < 0)
                         {
+                            frame_index = (frame_index == INF_FRAME_0)? INF_FRAME_0 : INF_FRAME_1;
                             free(packet);
                             perror("llread: Can't send RR response");
                             return -1;
@@ -286,7 +287,7 @@ int llread(unsigned char *packet)
                     if(write_frame(fd,RX_ADD,frame_index == INF_FRAME_0? REJ0: REJ1))
                     {
                         free(packet);
-                        perror("llread: Can't send RR response");
+                        perror("llread: Can't send REJ response");
                         return -1;
                     }
                     perror("llread: reject message");
