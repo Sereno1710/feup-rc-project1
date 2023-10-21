@@ -12,6 +12,7 @@ int nRetransmissions;
 int timeout;
 int fd;
 unsigned char frame_index = INF_FRAME_0;
+int message_received=0;
 
 enum packet_state state;
 
@@ -198,7 +199,7 @@ int llread(unsigned char *packet)
 {
     // TODO
     int after_esc = FALSE;
-    unsigned char tx_buf;
+    unsigned char tx_buf, control;
     int packet_size = 0;
     state = START;
 
@@ -214,26 +215,90 @@ int llread(unsigned char *packet)
                     state = F;
                 break;
             case F:
-                /* code */
+                puts("state: FLAG");
+                if (tx_buf == TX_ADD)
+                    state = A;
+                else if (tx_buf != FLAG)
+                    state = START;
                 break;
             case A:
-                /* code */
+                puts("state: ADDRESS");
+                if (tx_buf == INF_FRAME_0 || tx_buf == INF_FRAME_1)
+                {
+                    state = C;
+                    control = tx_buf;
+                }
+                else if(tx_buf == FLAG)
+                    state = F;
+                else 
+                    state = START;
                 break;
             case C:
-                /* code */
-                break;
-            case BCC:
-                /* code */
+                puts("state: CONTROL");
+                if( tx_buf == ((control ^ TX_ADD) & 0xFF))
+                    state = DATA;
+                else if(tx_buf == FLAG)
+                    state = F;
+                else 
+                    state = START;
                 break;
             case DATA:
-                /* code */
+                puts("state: DATA");
+                if(tx_buf == ESC)
+                {
+                    after_esc=TRUE;
+                }
+                else if(after_esc)
+                {
+                    after_esc=FALSE;
+                    if(tx_buf == 0x5E)
+                        packet[packet_size++] = FLAG;
+                    else    
+                        packet[packet_size++] = ESC;
+                }
+                else if(tx_buf == FLAG)
+                {
+                    unsigned char bcc2= packet[packet_size-1];
+
+                    packet_size-=1;
+                    packet[packet_size]='\0';
+
+                    unsigned char read_bcc2=0;
+
+                    for(int i=0; i< packet_size; i++)
+                    {
+                        read_bcc2 ^= packet[i];
+                    }
+
+                    if(read_bcc2 == bcc2)
+                    {
+                        state=STOP;
+                        frame_index = (frame_index == INF_FRAME_0) ? INF_FRAME_1 : INF_FRAME_0;
+                        
+                        if(write_frame(fd, RX_ADD, frame_index == INF_FRAME_0? RR0 : RR1) < 0)
+                        {
+                            free(packet);
+                            perror("llread: Can't send RR response");
+                            return -1;
+                        }
+                        return packet_size;
+                    }
+                    if(write_frame(fd,RX_ADD,frame_index == INF_FRAME_0? REJ0: REJ1))
+                    {
+                        free(packet);
+                        perror("llread: Can't send RR response");
+                        return -1;
+                    }
+                    perror("llread: reject message");
+                    return -1;
+                }
                 break;
             default:
                 break;
             }
         }
     }
-    return 0;
+    return -1;
 }
 
 ////////////////////////////////////////////////
