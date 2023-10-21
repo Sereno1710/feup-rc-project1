@@ -12,7 +12,7 @@ int nRetransmissions;
 int timeout;
 int fd;
 unsigned char frame_index = INF_FRAME_0;
-int message_received=0;
+int message_received = 0;
 
 enum packet_state state;
 
@@ -173,6 +173,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     unsigned attempts = nRetransmissions;
     while (attempts--)
     {
+        puts("llwrite: Sending frame");
         if (write(fd, frame, frame_size) == -1)
         {
             perror("error: error writting frame");
@@ -183,13 +184,30 @@ int llwrite(const unsigned char *buf, int bufSize)
         alarmEnabled = TRUE;
         state = START;
 
-        while (alarmEnabled)
+        unsigned char response = 0x00;
+        if (get_llwrite_response(fd, &response) == 0)
         {
-            // TODO -> Acabar
+            if (response == RR0 || response == RR1)
+            {
+                alarm(0);
+                alarmEnabled = FALSE;
+                free(frame);
+                frame_index = (response == RR0) ? INF_FRAME_0 : INF_FRAME_1;
+                return frame_size;
+            }
+            else if (response == REJ0 || response == REJ1)
+            {
+                perror("llwrite: REJ received");
+                continue;
+            }
         }
     }
 
-    return 0;
+    alarm(0);
+    alarmEnabled = FALSE;
+    free(frame);
+    perror("llwrite: no response");
+    return 1;
 }
 
 ////////////////////////////////////////////////
@@ -228,54 +246,54 @@ int llread(unsigned char *packet)
                     state = C;
                     control = tx_buf;
                 }
-                else if(tx_buf == FLAG)
+                else if (tx_buf == FLAG)
                     state = F;
-                else 
+                else
                     state = START;
                 break;
             case C:
                 puts("state: CONTROL");
-                if( tx_buf == ((control ^ TX_ADD) & 0xFF))
+                if (tx_buf == ((control ^ TX_ADD) & 0xFF))
                     state = DATA;
-                else if(tx_buf == FLAG)
+                else if (tx_buf == FLAG)
                     state = F;
-                else 
+                else
                     state = START;
                 break;
             case DATA:
                 puts("state: DATA");
-                if(tx_buf == ESC)
+                if (tx_buf == ESC)
                 {
-                    after_esc=TRUE;
+                    after_esc = TRUE;
                 }
-                else if(after_esc)
+                else if (after_esc)
                 {
-                    after_esc=FALSE;
-                    if(tx_buf == 0x5E)
+                    after_esc = FALSE;
+                    if (tx_buf == 0x5E)
                         packet[packet_size++] = FLAG;
-                    else    
+                    else
                         packet[packet_size++] = ESC;
                 }
-                else if(tx_buf == FLAG)
+                else if (tx_buf == FLAG)
                 {
-                    unsigned char bcc2= packet[packet_size-1];
+                    unsigned char bcc2 = packet[packet_size - 1];
 
-                    packet_size-=1;
-                    packet[packet_size]='\0';
+                    packet_size -= 1;
+                    packet[packet_size] = '\0';
 
-                    unsigned char read_bcc2=0;
+                    unsigned char read_bcc2 = 0;
 
-                    for(int i=0; i< packet_size; i++)
+                    for (int i = 0; i < packet_size; i++)
                     {
                         read_bcc2 ^= packet[i];
                     }
 
-                    if(read_bcc2 == bcc2)
+                    if (read_bcc2 == bcc2)
                     {
-                        state=STOP;
+                        state = STOP;
                         frame_index = (frame_index == INF_FRAME_0) ? INF_FRAME_1 : INF_FRAME_0;
 
-                        if(write_frame(fd, RX_ADD, frame_index == INF_FRAME_0? RR0 : RR1) < 0)
+                        if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? RR0 : RR1) < 0)
                         {
                             free(packet);
                             perror("llread: Can't send RR response");
@@ -283,7 +301,7 @@ int llread(unsigned char *packet)
                         }
                         return packet_size;
                     }
-                    if(write_frame(fd,RX_ADD,frame_index == INF_FRAME_0? REJ0: REJ1))
+                    if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? REJ0 : REJ1))
                     {
                         free(packet);
                         perror("llread: Can't send RR response");
@@ -292,7 +310,7 @@ int llread(unsigned char *packet)
                     perror("llread: reject message");
                     return -1;
                 }
-                else 
+                else
                     packet[packet_size++] = tx_buf;
                 break;
             default:
@@ -320,52 +338,38 @@ int llclose(int showStatistics)
             puts("llclose: Sending DISC frame");
             if (write_frame(fd, TX_ADD, DISC) < 0)
             {
-                perror("error: Can't write DISC frame");
-                return 1;
+                puts("error: Can't write DISC frame");
+                continue;
             }
-
-            alarm(timeout);
-            alarmEnabled = TRUE;
-            state = START;
-
-            while (alarmEnabled && state != STOP)
-            {
-                if (!read_frame(fd, RX_ADD, DISC))
-                {
-                    perror("error:  Can't read DISC frame");
-                }
-            }
-
-            if (state == STOP)
+            if (read_frame(fd, RX_ADD, DISC) != 0)
             {
                 alarm(0);
                 alarmEnabled = FALSE;
+                puts("llclose: Received DISC frame");
+                break;
             }
+            puts("error:  Can't read DISC frame");
         }
-        puts("llclose: Received DISC frame");
+
         if (write_frame(fd, TX_ADD, UA) < 0)
         {
-            perror("error: Can't write UA frame");
-            return 1;
+            puts("error: Can't write UA frame");
         }
+
         puts("llclose: Sent UA frame");
         return 0;
     }
     else if (role == LlRx)
     {
-        perror("llclose: Waiting DISC frame");
-        while (state != STOP)
+        puts("llclose: Waiting DISC frame");
+        if (read_frame(fd, TX_ADD, DISC) != 0)
         {
-            if (!read_frame(fd, TX_ADD, DISC))
-            {
-                perror("error: Can't read DISC frame");
-            }
+            puts("error: Can't read DISC frame");
         }
         puts("llclose: Recieved DISC frame");
         if (write_frame(fd, RX_ADD, DISC) < 0)
         {
-            perror("error : Can't send DISC frame");
-            return 1;
+            puts("error : Can't send DISC frame");
         }
         puts("llclose: Sent DISC frame");
         return 0;
@@ -425,6 +429,69 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
             break;
         case STOP:
             puts("state: STOP");
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int get_llwrite_response(int fd, unsigned char *response)
+{
+    unsigned char rx_buf;
+
+    while (alarmEnabled)
+    {
+        if (read(fd, &rx_buf, 1) < 0)
+        {
+            perror("error: error reading frame");
+            return 1;
+        }
+        switch (state)
+        {
+        case START:
+            puts("state: START");
+            if (rx_buf == FLAG)
+                state = F;
+            break;
+        case F:
+            puts("state: F");
+            if (rx_buf == RX_ADD)
+                state = A;
+            else if (rx_buf != F)
+                state = START;
+            break;
+        case A:
+            puts("state: A");
+            if (rx_buf == RR0 || rx_buf == RR1 || rx_buf == REJ0 || rx_buf == REJ1)
+            {
+                state = C;
+                response = rx_buf;
+            }
+            else if (rx_buf == FLAG)
+                state = F;
+            else
+                state = START;
+            break;
+        case C:
+            puts("state: C");
+            if ((rx_buf == RX_ADD ^ *response) & 0xFF)
+                state = BCC;
+            else if (rx_buf == FLAG)
+                state = F;
+            else
+                state = START;
+            break;
+        case BCC:
+            puts("state: BCC");
+            if (rx_buf == FLAG)
+                state = STOP;
+            else
+                state = START;
+            break;
+        case STOP:
+            puts("state: STOP");
+            alarm(0);
+            alarmEnabled = FALSE;
             return 0;
         }
     }
