@@ -274,7 +274,7 @@ int llread(unsigned char *packet)
                     {
                         state=STOP;
                         frame_index = (frame_index == INF_FRAME_0) ? INF_FRAME_1 : INF_FRAME_0;
-                        
+
                         if(write_frame(fd, RX_ADD, frame_index == INF_FRAME_0? RR0 : RR1) < 0)
                         {
                             free(packet);
@@ -292,6 +292,8 @@ int llread(unsigned char *packet)
                     perror("llread: reject message");
                     return -1;
                 }
+                else 
+                    packet[packet_size++] = tx_buf;
                 break;
             default:
                 break;
