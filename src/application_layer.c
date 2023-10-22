@@ -36,7 +36,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int bytes_read = 1;
         while (bytes_read > 0)
         {
-            bytes_read = read(file, buffer, buf_size);
+            bytes_read = read(file, buffer + 1, buf_size);
             if (bytes_read < 0)
             {
                 perror("Error: read file\n");
