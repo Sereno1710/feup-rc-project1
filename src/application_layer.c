@@ -2,6 +2,8 @@
 
 #include "application_layer.h"
 
+unsigned char debug = TRUE;
+
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
 {
@@ -9,7 +11,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     strcpy(ll.serialPort, serialPort);
     ll.nRetransmissions = nTries;
     ll.baudRate = baudRate;
-    ll.role = strcmp(role, "tx") == 0 ? LlTx : LlRx;
+    ll.role = (strcmp(role, "tx") == 0) ? LlTx : LlRx;
     ll.timeout = timeout;
 
     if (llopen(ll) == -1)
@@ -17,11 +19,13 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         perror("Error: llopen\n");
         exit(1);
     }
-    printf("llopen ok!\n");
+    if (debug)
+        puts("llopen ok!\n");
 
     if (ll.role == LlTx)
     {
-        printf("Running in tx mode\n");
+        if (debug)
+            puts("Running in tx mode\n");
 
         int file = open(filename, O_RDONLY);
         if (file < 0)
@@ -45,7 +49,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             else if (bytes_read > 0)
             {
                 buffer[0] = 1;
-                printf("Writing %d bytes\n", bytes_read + 1);
+                if (debug)
+                    printf("Writing %d bytes\n", bytes_read + 1);
                 if (llwrite(buffer, bytes_read + 1) == -1)
                 {
                     perror("Error: llwrite\n");
@@ -54,7 +59,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             else if (bytes_read == 0)
             {
-                printf("File sent!\n");
+                if (debug)
+                    printf("File sent!\n");
                 buffer[0] = 0;
                 llwrite(buffer, 1);
                 break;
@@ -65,18 +71,19 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     }
     else if (ll.role == LlRx)
     {
-        printf("Running in rx mode\n");
+        if (debug)
+            puts("Running in rx mode\n");
 
         int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
         if (file < 0)
         {
+            if (debug)
+                puts("Error: open file");
             llclose(0);
-            perror("Error: open file\n");
-            exit(1);
+            return;
         }
 
-        const int buf_size = MAX_PAYLOAD_SIZE * 2;
-        unsigned char buffer[buf_size];
+        unsigned char buffer[MAX_PAYLOAD_SIZE];
         int bytes_read = 0;
         int total_bytes_read = 0;
 
@@ -84,7 +91,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         {
             bytes_read = llread(buffer);
             buffer[bytes_read] = '\0';
-            printf("Reading %d bytes\n", bytes_read);
+            if (debug)
+                printf("Reading %d bytes\n", bytes_read);
 
             if (bytes_read <= 0)
             {
@@ -95,7 +103,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             {
                 if (buffer[0] == 0)
                 {
-                    puts("File received!");
+                    if (debug)
+                        puts("File received!");
                     break;
                 }
                 else if (buffer[0] == 1)
