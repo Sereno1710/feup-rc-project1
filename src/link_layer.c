@@ -344,7 +344,6 @@ int llclose(int showStatistics)
 
         while (attemps--)
         {
-
             puts("llclose: Sending DISC frame");
             if (write_frame(fd, TX_ADD, DISC) < 0)
             {
@@ -382,12 +381,12 @@ int llclose(int showStatistics)
     }
     else if (role == LlRx)
     {
-
         puts("llclose: Waiting DISC frame");
+        alarmEnabled = TRUE;
         if (read_frame(fd, TX_ADD, DISC) != 0)
         {
-
             puts("error: Can't read DISC frame");
+            return -1;
         }
 
         puts("llclose: Recieved DISC frame");
@@ -398,7 +397,6 @@ int llclose(int showStatistics)
         }
 
         puts("llclose: Sent DISC frame");
-
         if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
         {
             perror("tcsetattr");
@@ -414,6 +412,8 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
 {
     unsigned char rx_buf;
     state = START;
+
+    printf("alarmEnabled = %d\n", alarmEnabled);
 
     while (alarmEnabled)
     {
