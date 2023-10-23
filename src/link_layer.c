@@ -59,7 +59,7 @@ int llopen(LinkLayer connectionParameters)
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
+    newtio.c_cc[VTIME] = 1; // Inter-character timer unused
     newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
@@ -309,10 +309,9 @@ int llread(unsigned char *packet)
                     }
                     else
                     {
-
-                        puts("BCC2 is wrong");
+                        puts("llread: BCC2 is wrong");
                     }
-                    if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? REJ0 : REJ1))
+                    if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? REJ0 : REJ1) < 0)
                     {
                         perror("llread: Can't send REJ response");
                         return -1;
@@ -340,9 +339,9 @@ int llclose(int showStatistics)
 
     if (role == LlTx)
     {
-        unsigned attemps = nRetransmissions;
+        unsigned attempts = nRetransmissions;
 
-        while (attemps--)
+        while (attempts--)
         {
             puts("llclose: Sending DISC frame");
             if (write_frame(fd, TX_ADD, DISC) < 0)
@@ -351,26 +350,36 @@ int llclose(int showStatistics)
                 puts("error: Can't write DISC frame");
                 continue;
             }
-            if (read_frame(fd, RX_ADD, DISC) != 0)
+            
+            alarm(timeout);
+            alarmEnabled = TRUE;
+            
+            if (read_frame(fd, RX_ADD, DISC) == 0)
             {
                 alarm(0);
                 alarmEnabled = FALSE;
-
                 puts("llclose: Received DISC frame");
                 break;
             }
 
             puts("error:  Can't read DISC frame");
         }
-
+    
+        if (attempts < 0) {
+            printf("error: Couldn't read DISC frame after %d attempts\n", nRetransmissions);
+            if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
+            {
+                perror("tcsetattr");
+                exit(-1);
+            }
+            return -1;
+        }
+        
         if (write_frame(fd, TX_ADD, UA) < 0)
         {
-
             puts("error: Can't write UA frame");
         }
-
         puts("llclose: Sent UA frame");
-
         if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
         {
             perror("tcsetattr");
@@ -394,9 +403,9 @@ int llclose(int showStatistics)
         {
 
             puts("error : Can't send DISC frame");
-        }
-
+        }        
         puts("llclose: Sent DISC frame");
+        
         if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
         {
             perror("tcsetattr");
@@ -413,8 +422,6 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
     unsigned char rx_buf;
     state = START;
 
-    printf("alarmEnabled = %d\n", alarmEnabled);
-
     while (alarmEnabled)
     {
         if (read(fd, &rx_buf, 1) < 0)
@@ -422,24 +429,24 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
             perror("error: error reading frame");
             return 1;
         }
-        printf("0x%02X\n", rx_buf);
+        // printf("0x%02X\n", rx_buf);
 
         switch (state)
         {
         case START:
-            puts("state: START");
+            // puts("state: START");
             if (rx_buf == FLAG)
                 state = F;
             break;
         case F:
-            puts("state: F");
+            // puts("state: F");
             if (rx_buf == addr)
                 state = A;
             else if (rx_buf != F)
                 state = START;
             break;
         case A:
-            puts("state: A");
+            // puts("state: A");
             if (rx_buf == ctrl)
                 state = C;
             else if (rx_buf == FLAG)
@@ -448,7 +455,7 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
                 state = START;
             break;
         case C:
-            puts("state: C");
+            // puts("state: C");
             if ((rx_buf == (addr ^ ctrl)) & 0xFF)
                 state = BCC;
             else if (rx_buf == FLAG)
@@ -457,7 +464,7 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
                 state = START;
             break;
         case BCC:
-            puts("state: BCC");
+            // puts("state: BCC");
             if (rx_buf == FLAG)
             {
                 state = STOP;
@@ -469,7 +476,9 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
                 state = START;
             break;
         case STOP:
+            break;
         case DATA:
+            break;
         }
     }
     return 1;
@@ -490,19 +499,19 @@ int get_llwrite_response(int fd, unsigned char *response)
         switch (state)
         {
         case START:
-            puts("state: START");
+            // puts("state: START");
             if (rx_buf == FLAG)
                 state = F;
             break;
         case F:
-            puts("state: F");
+            // puts("state: F");
             if (rx_buf == RX_ADD)
                 state = A;
             else if (rx_buf != F)
                 state = START;
             break;
         case A:
-            puts("state: A");
+            // puts("state: A");
             if (rx_buf == RR0 || rx_buf == RR1 || rx_buf == REJ0 || rx_buf == REJ1)
             {
                 state = C;
@@ -514,7 +523,7 @@ int get_llwrite_response(int fd, unsigned char *response)
                 state = START;
             break;
         case C:
-            puts("state: C");
+            // puts("state: C");
             if ((rx_buf == (RX_ADD ^ *response)) & 0xFF)
                 state = BCC;
             else if (rx_buf == FLAG)
@@ -523,7 +532,7 @@ int get_llwrite_response(int fd, unsigned char *response)
                 state = START;
             break;
         case BCC:
-            puts("state: BCC");
+            // puts("state: BCC");
             if (rx_buf == FLAG)
             {
                 state = STOP;
@@ -535,7 +544,9 @@ int get_llwrite_response(int fd, unsigned char *response)
                 state = START;
             break;
         case STOP:
+            break;
         case DATA:
+            break;
         }
     }
     return 1;

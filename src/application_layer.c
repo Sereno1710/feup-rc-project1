@@ -58,7 +58,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 if (llwrite(buffer, bytes_read + 3) == -1)
                 {
                     perror("Error: llwrite\n");
-                    break;
                 }
             }
             else if (bytes_read == 0)
@@ -111,8 +110,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
             if (bytes_read < 0)
             {
-                perror("Error: llread\n");
-                break;
+                puts("Error: llread\n");
+                bytes_read = 0;
             }
             else if (bytes_read > 0)
             {
