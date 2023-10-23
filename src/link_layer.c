@@ -18,14 +18,11 @@ int message_received = 0;
 
 enum packet_state state;
 
-extern unsigned char debug;
-
 void alarmHandler(int signal)
 {
     alarmEnabled = FALSE;
     state = START;
-    if (debug)
-        puts("Alarm triggered");
+    // puts("Alarm triggered");
 }
 
 ////////////////////////////////////////////////
@@ -62,8 +59,8 @@ int llopen(LinkLayer connectionParameters)
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 1; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
+    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
+    newtio.c_cc[VMIN] = 1;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -82,12 +79,9 @@ int llopen(LinkLayer connectionParameters)
         exit(-1);
     }
 
-    if (debug)
-        printf("New termios structure set\n");
+    // puts("New termios structure set\n");
 
     (void)signal(SIGALRM, alarmHandler);
-
-    state = START;
 
     if (role == LlTx)
     {
@@ -95,55 +89,46 @@ int llopen(LinkLayer connectionParameters)
 
         while (attempts--)
         {
-            if (debug)
-                puts("llopen: Sending SET frame");
+            // puts("llopen: Sending SET frame");
             if (write_frame(fd, TX_ADD, SET) < 0)
             {
                 perror("error: can't write SET packet");
-                return 1;
+                return -1;
             }
 
             alarm(timeout);
             alarmEnabled = TRUE;
-            state = START;
 
-            if (debug)
-                puts("llopen: Waiting for UA frame");
+            // puts("llopen: Waiting for UA frame");
             if (read_frame(fd, RX_ADD, UA) == 0)
             {
-                if (debug)
-                    puts("llopen: Received UA frame");
+                // puts("llopen: Received UA frame");
                 alarm(0);
                 alarmEnabled = FALSE;
-                state = START;
-                return 0;
+                return 1;
             }
-            if (debug)
-                puts("llopen: Didn't receive UA frame");
+
+            // puts("llopen: Didn't receive UA frame");
         }
     }
     else if (role == LlRx)
     {
-        if (debug)
-            puts("llopen: Waiting for SET frame");
+        // puts("llopen: Waiting for SET frame");
         while (read_frame(fd, TX_ADD, SET) != 0)
         {
-            if (debug)
-                puts("llopen: Didn't receive SET frame");
+            // puts("llopen: Didn't receive SET frame");
         }
-        if (debug)
-            puts("llopen: Received SET frame");
+        // puts("llopen: Received SET frame");
 
         if (write_frame(fd, RX_ADD, UA) < 0)
         {
-            perror("error: can't write UA frame");
-            return 1;
+            // puts("error: can't write UA frame");
+            return -1;
         }
-        if (debug)
-            puts("llopen: Sent UA frame");
-        return 0;
+        // puts("llopen: Sent UA frame");
+        return 1;
     }
-    return 1;
+    return -1;
 }
 
 ////////////////////////////////////////////////
@@ -189,14 +174,11 @@ int llwrite(const unsigned char *buf, int bufSize)
     }
     frame[++index] = FLAG;
 
-    // for (int i = 0; i < index; i++)
-    //     printf("0x%02X ", frame[i]);
-
     unsigned attempts = nRetransmissions;
     while (attempts--)
     {
-        if (debug)
-            puts("llwrite: Sending frame");
+
+        // puts("llwrite: Sending frame");
         if (write(fd, frame, frame_size) == -1)
         {
             perror("error: error writting frame");
@@ -205,7 +187,6 @@ int llwrite(const unsigned char *buf, int bufSize)
 
         alarm(timeout);
         alarmEnabled = TRUE;
-        state = START;
 
         unsigned char response = 0x00;
         if (get_llwrite_response(fd, &response) == 0)
@@ -220,8 +201,8 @@ int llwrite(const unsigned char *buf, int bufSize)
             }
             else if (response == REJ0 || response == REJ1)
             {
-                if (debug)
-                    puts("llwrite: REJ received");
+
+                // puts("llwrite: REJ received");
                 continue;
             }
         }
@@ -244,8 +225,8 @@ int llread(unsigned char *packet)
     unsigned char tx_buf, control;
     int packet_size = 0;
     state = START;
-    if (debug)
-        puts("llread: Reading frame");
+
+    // puts("llread: Reading frame");
     while (state != STOP)
     {
         if (read(fd, &tx_buf, 1) > 0)
@@ -253,22 +234,19 @@ int llread(unsigned char *packet)
             switch (state)
             {
             case START:
-                if (debug)
-                    puts("state: START");
+                // puts("state: START");
                 if (tx_buf == FLAG)
                     state = F;
                 break;
             case F:
-                if (debug)
-                    puts("state: FLAG");
+                // puts("state: FLAG");
                 if (tx_buf == TX_ADD)
                     state = A;
                 else if (tx_buf != FLAG)
                     state = START;
                 break;
             case A:
-                if (debug)
-                    puts("state: ADDRESS");
+                // puts("state: ADDRESS");
                 if (tx_buf == INF_FRAME_0 || tx_buf == INF_FRAME_1)
                 {
                     state = C;
@@ -280,8 +258,7 @@ int llread(unsigned char *packet)
                     state = START;
                 break;
             case C:
-                if (debug)
-                    puts("state: CONTROL");
+                // puts("state: CONTROL");
                 if (tx_buf == ((control ^ TX_ADD) & 0xFF))
                     state = DATA;
                 else if (tx_buf == FLAG)
@@ -290,8 +267,7 @@ int llread(unsigned char *packet)
                     state = START;
                 break;
             case DATA:
-                if (debug)
-                    puts("State: DATA");
+                // // puts("State: DATA");
                 if (tx_buf == ESC_ESC)
                 {
                     after_esc = TRUE;
@@ -321,9 +297,7 @@ int llread(unsigned char *packet)
                     {
                         state = STOP;
 
-                        if (debug)
-                            printf("Current frame index: %d\n", frame_index);
-                        // frame_index = (frame_index == INF_FRAME_0) ? INF_FRAME_1 : INF_FRAME_0;
+                        // printf("Current frame index: %d\n", frame_index);
 
                         if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? RR1 : RR0) < 0)
                         {
@@ -335,8 +309,8 @@ int llread(unsigned char *packet)
                     }
                     else
                     {
-                        if (debug)
-                            puts("BCC2 is wrong");
+
+                        // puts("BCC2 is wrong");
                     }
                     if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? REJ0 : REJ1))
                     {
@@ -371,34 +345,33 @@ int llclose(int showStatistics)
 
         while (attemps--)
         {
-            if (debug)
-                puts("llclose: Sending DISC frame");
+
+            // puts("llclose: Sending DISC frame");
             if (write_frame(fd, TX_ADD, DISC) < 0)
             {
-                if (debug)
-                    puts("error: Can't write DISC frame");
+
+                // puts("error: Can't write DISC frame");
                 continue;
             }
             if (read_frame(fd, RX_ADD, DISC) != 0)
             {
                 alarm(0);
                 alarmEnabled = FALSE;
-                if (debug)
-                    puts("llclose: Received DISC frame");
+
+                // puts("llclose: Received DISC frame");
                 break;
             }
-            if (debug)
-                puts("error:  Can't read DISC frame");
+
+            // puts("error:  Can't read DISC frame");
         }
 
         if (write_frame(fd, TX_ADD, UA) < 0)
         {
-            if (debug)
-                puts("error: Can't write UA frame");
+
+            // puts("error: Can't write UA frame");
         }
 
-        if (debug)
-            puts("llclose: Sent UA frame");
+        // puts("llclose: Sent UA frame");
 
         if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
         {
@@ -410,22 +383,22 @@ int llclose(int showStatistics)
     }
     else if (role == LlRx)
     {
-        if (debug)
-            puts("llclose: Waiting DISC frame");
+
+        // puts("llclose: Waiting DISC frame");
         if (read_frame(fd, TX_ADD, DISC) != 0)
         {
-            if (debug)
-                puts("error: Can't read DISC frame");
+
+            // puts("error: Can't read DISC frame");
         }
-        if (debug)
-            puts("llclose: Recieved DISC frame");
+
+        // puts("llclose: Recieved DISC frame");
         if (write_frame(fd, RX_ADD, DISC) < 0)
         {
-            if (debug)
-                puts("error : Can't send DISC frame");
+
+            // puts("error : Can't send DISC frame");
         }
-        if (debug)
-            puts("llclose: Sent DISC frame");
+
+        // puts("llclose: Sent DISC frame");
 
         if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
         {
@@ -441,6 +414,7 @@ int llclose(int showStatistics)
 int read_frame(int fd, unsigned char addr, unsigned char ctrl)
 {
     unsigned char rx_buf;
+    state = START;
 
     while (alarmEnabled)
     {
@@ -449,26 +423,24 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
             perror("error: error reading frame");
             return 1;
         }
+        // printf("0x%02X\n", rx_buf);
 
         switch (state)
         {
         case START:
-            if (debug)
-                puts("state: START");
+            // puts("state: START");
             if (rx_buf == FLAG)
                 state = F;
             break;
         case F:
-            if (debug)
-                puts("state: F");
+            // puts("state: F");
             if (rx_buf == addr)
                 state = A;
             else if (rx_buf != F)
                 state = START;
             break;
         case A:
-            if (debug)
-                puts("state: A");
+            // puts("state: A");
             if (rx_buf == ctrl)
                 state = C;
             else if (rx_buf == FLAG)
@@ -477,8 +449,7 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
                 state = START;
             break;
         case C:
-            if (debug)
-                puts("state: C");
+            // puts("state: C");
             if ((rx_buf == (addr ^ ctrl)) & 0xFF)
                 state = BCC;
             else if (rx_buf == FLAG)
@@ -487,17 +458,18 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
                 state = START;
             break;
         case BCC:
-            if (debug)
-                puts("state: BCC");
+            // puts("state: BCC");
             if (rx_buf == FLAG)
+            {
                 state = STOP;
+                alarm(0);
+                alarmEnabled = FALSE;
+                return 0;
+            }
             else
                 state = START;
             break;
         case STOP:
-            if (debug)
-                puts("state: STOP");
-            return 0;
         case DATA:
         }
     }
@@ -507,6 +479,7 @@ int read_frame(int fd, unsigned char addr, unsigned char ctrl)
 int get_llwrite_response(int fd, unsigned char *response)
 {
     unsigned char rx_buf;
+    state = START;
 
     while (alarmEnabled)
     {
@@ -518,22 +491,19 @@ int get_llwrite_response(int fd, unsigned char *response)
         switch (state)
         {
         case START:
-            if (debug)
-                puts("state: START");
+            // puts("state: START");
             if (rx_buf == FLAG)
                 state = F;
             break;
         case F:
-            if (debug)
-                puts("state: F");
+            // puts("state: F");
             if (rx_buf == RX_ADD)
                 state = A;
             else if (rx_buf != F)
                 state = START;
             break;
         case A:
-            if (debug)
-                puts("state: A");
+            // puts("state: A");
             if (rx_buf == RR0 || rx_buf == RR1 || rx_buf == REJ0 || rx_buf == REJ1)
             {
                 state = C;
@@ -545,8 +515,7 @@ int get_llwrite_response(int fd, unsigned char *response)
                 state = START;
             break;
         case C:
-            if (debug)
-                puts("state: C");
+            // puts("state: C");
             if ((rx_buf == (RX_ADD ^ *response)) & 0xFF)
                 state = BCC;
             else if (rx_buf == FLAG)
@@ -555,19 +524,18 @@ int get_llwrite_response(int fd, unsigned char *response)
                 state = START;
             break;
         case BCC:
-            if (debug)
-                puts("state: BCC");
+            // puts("state: BCC");
             if (rx_buf == FLAG)
+            {
                 state = STOP;
+                alarm(0);
+                alarmEnabled = FALSE;
+                return 0;
+            }
             else
                 state = START;
             break;
         case STOP:
-            if (debug)
-                puts("state: STOP");
-            alarm(0);
-            alarmEnabled = FALSE;
-            return 0;
         case DATA:
         }
     }

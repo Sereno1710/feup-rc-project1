@@ -17,4 +17,7 @@
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename);
 
+int write_control_packet(int file, const char *filename, int type);
+
+int receive_control_packet(const char *filename, int type);
 #endif // _APPLICATION_LAYER_H_
