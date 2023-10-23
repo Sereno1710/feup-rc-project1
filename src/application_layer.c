@@ -17,11 +17,11 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         perror("Error: llopen\n");
         return;
     }
-    // puts("llopen ok!\n");
+    puts("llopen ok!\n");
 
     if (ll.role == LlTx)
     {
-        // puts("Running in tx mode\n");
+        puts("Running in tx mode\n");
 
         int file = open(filename, O_RDONLY);
         if (file < 0)
@@ -54,7 +54,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 buffer[1] = (bytes_read >> 8) & 0xFF;
                 buffer[2] = (bytes_read & 0xFF);
 
-                // printf("Writing %d bytes\n", bytes_read + 3);
+                printf("Writing %d bytes\n", bytes_read + 3);
                 if (llwrite(buffer, bytes_read + 3) == -1)
                 {
                     perror("Error: llwrite\n");
@@ -63,7 +63,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             else if (bytes_read == 0)
             {
-                // printf("File sent!\n");
+                printf("File sent!\n");
                 buffer[0] = 0;
                 llwrite(buffer, 1);
                 break;
@@ -82,7 +82,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     }
     else if (ll.role == LlRx)
     {
-        // puts("Running in rx mode\n");
+        puts("Running in rx mode\n");
 
         if (receive_control_packet(filename, 2) == -1)
         {
@@ -94,7 +94,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
         if (file < 0)
         {
-            // puts("Error: open file");
+            puts("Error: open file");
             llclose(0);
             return;
         }
@@ -107,7 +107,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         {
             bytes_read = llread(buffer);
             buffer[bytes_read] = '\0';
-            // printf("Reading %d bytes\n", bytes_read);
+            printf("Reading %d bytes\n", bytes_read);
 
             if (bytes_read < 0)
             {
@@ -118,7 +118,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             {
                 if (buffer[0] == 0)
                 {
-                    // puts("File received!");
+                    puts("File received!");
                     break;
                 }
                 else if (buffer[0] == 1)
