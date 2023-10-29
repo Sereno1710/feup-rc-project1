@@ -267,7 +267,9 @@ int llread(unsigned char *packet)
                     state = START;
                 break;
             case DATA:
-                puts("State: DATA");
+                // puts("State: DATA");
+                printf("Byte read: 0x%02X\n", tx_buf);
+
                 if (tx_buf == ESC_ESC)
                 {
                     after_esc = TRUE;
@@ -305,6 +307,7 @@ int llread(unsigned char *packet)
                             return -1;
                         }
                         frame_index = (frame_index == INF_FRAME_0) ? INF_FRAME_1 : INF_FRAME_0;
+                        printf("Packet size: %d\n", packet_size);
                         return packet_size;
                     }
                     else
@@ -350,10 +353,10 @@ int llclose(int showStatistics)
                 puts("error: Can't write DISC frame");
                 continue;
             }
-            
+
             alarm(timeout);
             alarmEnabled = TRUE;
-            
+
             if (read_frame(fd, RX_ADD, DISC) == 0)
             {
                 alarm(0);
@@ -364,8 +367,9 @@ int llclose(int showStatistics)
 
             puts("error:  Can't read DISC frame");
         }
-    
-        if (attempts < 0) {
+
+        if (attempts < 0)
+        {
             printf("error: Couldn't read DISC frame after %d attempts\n", nRetransmissions);
             if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
             {
@@ -374,7 +378,7 @@ int llclose(int showStatistics)
             }
             return -1;
         }
-        
+
         if (write_frame(fd, TX_ADD, UA) < 0)
         {
             puts("error: Can't write UA frame");
@@ -403,9 +407,9 @@ int llclose(int showStatistics)
         {
 
             puts("error : Can't send DISC frame");
-        }        
+        }
         puts("llclose: Sent DISC frame");
-        
+
         if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
         {
             perror("tcsetattr");

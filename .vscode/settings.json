@@ -2,6 +2,7 @@
     "files.associations": {
         "application_layer.h": "c",
         "unistd.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "link_layer.h": "c"
     }
 }

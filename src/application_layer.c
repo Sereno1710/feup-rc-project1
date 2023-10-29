@@ -2,6 +2,8 @@
 
 #include "application_layer.h"
 
+// file_info *file_info;
+
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
 {
@@ -30,12 +32,14 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             return;
         }
 
+        puts("Sending start packet");
         if (write_control_packet(file, filename, 2) == -1)
         {
             perror("error: Start control packet not sent");
             llclose(0);
             return;
         }
+        puts("Start packet sent");
 
         const int buf_size = MAX_PAYLOAD_SIZE + 3;
         unsigned char buffer[buf_size + 3];
@@ -83,12 +87,15 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     {
         puts("Running in rx mode\n");
 
-        if (receive_control_packet(filename, 2) == -1)
+        file_info file_information;
+
+        if (receive_control_packet(&file_information, 2) == -1)
         {
             perror("Error: Start packet");
             llclose(0);
             return;
         }
+        puts("Start packet received");
 
         int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
         if (file < 0)
@@ -100,9 +107,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         unsigned char buffer[MAX_PAYLOAD_SIZE * 2];
         int bytes_read = 0;
-        int total_bytes_read = 0;
+        int bytes_left = 9999;
 
-        while (bytes_read >= 0)
+        while (bytes_left > 0)
         {
             bytes_read = llread(buffer);
             buffer[bytes_read] = '\0';
@@ -115,6 +122,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             else if (bytes_read > 0)
             {
+                printf("\n\nbuffer[0]: %d\n\n", buffer[0]);
                 if (buffer[0] == 0)
                 {
                     puts("File received!");
@@ -127,7 +135,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                         perror("Error: write file\n");
                         break;
                     }
-                    total_bytes_read += bytes_read - 1;
+                    bytes_left -= bytes_read;
                 }
                 else if (buffer[0] == 2)
                 {
@@ -138,9 +146,15 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                     puts("End packet received!");
                 }
             }
+            else if (bytes_read == 0)
+            {
+                puts("Didn't receive anything");
+            }
+
+            sleep(1);
         }
 
-        if (receive_control_packet(filename, 3) == -1)
+        if (receive_control_packet(&file_information, 3) == -1)
         {
             perror("Error: Start packet");
             llclose(0);
@@ -154,24 +168,27 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
 int write_control_packet(int file, const char *filename, int type)
 {
-
+    unsigned char packet[MAX_PAYLOAD_SIZE];
+    size_t packet_size = 0;
+    packet[packet_size++] = type; // start packet
+    packet[packet_size++] = 0;    // file size type
+    packet[packet_size++] = 0;    // file size bytes length
     size_t filesize = lseek(file, 0, SEEK_END);
-    lseek(file, 0, SEEK_SET);
-    unsigned char start[MAX_PAYLOAD_SIZE] = {
-        type,
-        0,
-        4,
-        (filesize >> 24) & 0xFF,
-        (filesize >> 16) & 0xFF,
-        (filesize >> 8) & 0xFF,
-        filesize & 0xFF,
-        1,
-        strlen(filename)};
 
-    memcpy(start + 9, filename, strlen(filename));
-    int start_size = 9 + strlen(filename);
+    while (filesize > 0)
+    {
+        packet[2] += 1;                   // incerement file size bytes length
+        packet[packet_size++] = filesize; // add byte to packet
+        filesize >>= 8;
+    }
 
-    if (llwrite(start, start_size) == -1)
+    packet[packet_size++] = 0x01;             // filename type
+    packet[packet_size++] = strlen(filename); // filename length
+    memcpy(packet + packet_size, filename, strlen(filename));
+    packet_size += strlen(filename);
+    packet[packet_size] = '\0';
+
+    if (llwrite(packet, packet_size) == -1)
     {
         perror("Error: Start packet");
         llclose(0);
@@ -180,7 +197,7 @@ int write_control_packet(int file, const char *filename, int type)
     return 0;
 }
 
-int receive_control_packet(const char *filename, int type)
+int receive_control_packet(file_info *file_information, int type)
 {
     unsigned char control_packet[MAX_PAYLOAD_SIZE];
     if (llread(control_packet) == -1)
@@ -188,31 +205,36 @@ int receive_control_packet(const char *filename, int type)
         perror("error: control packet not received");
         return -1;
     }
+    printf("Control packet size: %ld\n", sizeof control_packet);
+
     if (control_packet[0] != type)
     {
         perror("Error: Incorrect control packet type");
         return -1;
     }
+
     if (control_packet[1] != 0)
     {
         perror("Error: Not file size type");
         return -1;
     }
-    if (control_packet[2] != 4)
+    if (control_packet[2] != file_information->fileSizeBytes)
     {
         perror("Error: Not file size length");
         return -1;
     }
 
-    if (type == 2)
-    {
-        int file_size = ((control_packet[3] << 24) & 0xFF000000) | ((control_packet[4] << 16) & 0xFF0000) | ((control_packet[5] << 8) & 0xFF00) | ((control_packet[6]) & 0xFF);
-        printf("File size: %d bytes\n", file_size);
-        unsigned char filename_size = control_packet[8];
-        unsigned char name[filename_size];
-        memcpy(name, control_packet + 9, filename_size + 1);
-        printf("File name: %s\n", name);
-    }
+    // if (type == 2)
+    // {
+    //     int filesize=0;
+    //     for(size_t i= 0; i < file_info->fileSizeBytes;i++)
+
+    //     printf("File size: %d bytes\n", file_size);
+    //     unsigned char filename_size = control_packet[8];
+    //     unsigned char name[filename_size];
+    //     memcpy(name, control_packet + 9, filename_size + 1);
+    //     printf("File name: %s\n", name);
+    // }
 
     return 0;
 }
