@@ -94,7 +94,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     {
         puts("Running in rx mode\n");
 
-        // file_info file_information;
+        puts("Receiving start packet");
         if (receive_control_packet(&file_information) == -1)
         {
             perror("Error: Start packet");
@@ -125,8 +125,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             if (bytes_read < 0)
             {
                 puts("Error: llread\n");
-                llclose(0);
-                return;
+                // llclose(0);
+                // return;
             }
             else if (bytes_read > 0)
             {

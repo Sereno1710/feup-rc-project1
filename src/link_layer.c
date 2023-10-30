@@ -1,6 +1,7 @@
 // Link layer protocol implementation
 
 #include "link_layer.h"
+#include <time.h>
 
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
@@ -59,7 +60,7 @@ int llopen(LinkLayer connectionParameters)
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
+    newtio.c_cc[VTIME] = 1; // Inter-character timer unused
     newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
@@ -300,7 +301,6 @@ int llread(unsigned char *packet)
                         state = STOP;
 
                         printf("\nCurrent frame index: %d\n", frame_index);
-
                         if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? RR1 : RR0) < 0)
                         {
                             perror("llread: Can't send RR response");
@@ -401,13 +401,15 @@ int llclose(int showStatistics)
             return -1;
         }
 
-        puts("llclose: Recieved DISC frame");
+        puts("llclose: Received DISC frame");
         if (write_frame(fd, RX_ADD, DISC) < 0)
         {
 
             puts("error : Can't send DISC frame");
         }
         puts("llclose: Sent DISC frame");
+
+        // sleep(2);
 
         if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
         {
