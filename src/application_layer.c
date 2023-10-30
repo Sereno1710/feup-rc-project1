@@ -2,7 +2,7 @@
 
 #include "application_layer.h"
 
-
+file_info file_information;
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
@@ -43,11 +43,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         const int buf_size = MAX_PAYLOAD_SIZE + 3;
         unsigned char buffer[buf_size + 3];
-        int bytes_read = 1;
+        int bytes_read = 1, total_bytes_read = 0;
         while (bytes_read > 0)
         {
             bytes_read = read(file, buffer + 3, buf_size);
-            sleep(1);
+            // sleep(1);
+
             if (bytes_read < 0)
             {
                 perror("Error: read file\n");
@@ -59,7 +60,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 buffer[1] = (bytes_read >> 8) & 0xFF;
                 buffer[2] = (bytes_read & 0xFF);
 
-                printf("Writing %d bytes\n", bytes_read + 3);
+                total_bytes_read += bytes_read;
+                printf("\nWriting %d bytes\n", bytes_read + 3);
+                printf("Total bytes written: %d / %d (%d%%)\n", total_bytes_read, file_information.fileSize, total_bytes_read * 100 / file_information.fileSize);
                 if (llwrite(buffer, bytes_read + 3) == -1)
                 {
                     perror("Error: llwrite\n");
@@ -67,20 +70,23 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             else if (bytes_read == 0)
             {
-                printf("File sent!\n");
                 buffer[0] = 0;
                 llwrite(buffer, 1);
+                puts("File sent!\n");
                 break;
             }
         }
 
+        puts("\nSending end packet");
         if (write_control_packet(file, filename, 3) == -1)
         {
             perror("error: End control packet not sent");
             llclose(0);
             return;
         }
+        puts("End packet sent\n");
 
+        puts("Calling llclose");
         llclose(0);
         close(file);
     }
@@ -88,8 +94,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     {
         puts("Running in rx mode\n");
 
-        file_info file_information;
-        if ( receive_control_packet(&file_information) == -1)
+        // file_info file_information;
+        if (receive_control_packet(&file_information) == -1)
         {
             perror("Error: Start packet");
             llclose(0);
@@ -107,13 +113,14 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         unsigned char buffer[MAX_PAYLOAD_SIZE * 2];
         int bytes_read = 0;
-        int total_bytes_read=0;
+        int total_bytes_read = 0;
 
-        while (file_information.fileSize > total_bytes_read)
+        while (file_information.fileSize >= total_bytes_read)
         {
             bytes_read = llread(buffer);
             buffer[bytes_read] = '\0';
-            printf("Reading %d bytes\n", bytes_read);
+
+            printf("\nReading %d bytes\n", bytes_read);
 
             if (bytes_read < 0)
             {
@@ -123,10 +130,9 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             }
             else if (bytes_read > 0)
             {
-                printf("\n\nbuffer[0]: %d\n\n", buffer[0]);
                 if (buffer[0] == 0)
                 {
-                    puts("File received!");
+                    puts("File received!\n");
                     break;
                 }
                 else if (buffer[0] == 1)
@@ -136,15 +142,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                         perror("Error: write file\n");
                         break;
                     }
-                    total_bytes_read += bytes_read;
-                }
-                else if (buffer[0] == 2)
-                {
-                    puts("Start packet received!");
-                }
-                else if (buffer[0] == 3)
-                {
-                    puts("End packet received!");
+                    total_bytes_read += bytes_read - 3;
+                    printf("Total bytes read: %d / %d (%d%%)\n", total_bytes_read, file_information.fileSize, total_bytes_read * 100 / file_information.fileSize);
                 }
             }
             else if (bytes_read == 0)
@@ -152,16 +151,19 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 puts("Didn't receive anything");
             }
 
-            sleep(1);
+            // sleep(1);
         }
 
+        puts("Receiving end packet");
         if (receive_control_packet(&file_information) == -1)
         {
-            perror("Error: Start packet");
+            perror("Error: End packet");
             llclose(0);
             return;
         }
+        puts("End packet received\n");
 
+        puts("Calling llclose");
         llclose(0);
         close(file);
     }
@@ -169,18 +171,29 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
 int write_control_packet(int file, const char *filename, int type)
 {
+
     unsigned char packet[MAX_PAYLOAD_SIZE];
     size_t packet_size = 0;
     packet[packet_size++] = type; // start packet
     packet[packet_size++] = 0;    // file size type
     packet[packet_size++] = 0;    // file size bytes length
-    int filesize = lseek(file, 0, SEEK_END);
+    lseek(file, 0, SEEK_SET);
+
+    file_information.fileSizeBytes = 0;
+    file_information.fileSize = lseek(file, 0, SEEK_END);
+    file_information.fileNameSize = strlen(filename);
+    file_information.filename = (char *)malloc(file_information.fileNameSize);
+    memcpy(file_information.filename, filename, file_information.fileNameSize);
+
+    lseek(file, 0, SEEK_SET);
+    int filesize = file_information.fileSize;
 
     while (filesize > 0)
     {
         packet[2] += 1;                   // incerement file size bytes length
         packet[packet_size++] = filesize; // add byte to packet
         filesize >>= 8;
+        file_information.fileSizeBytes++;
     }
 
     packet[packet_size++] = 0x01;             // filename type
@@ -198,7 +211,7 @@ int write_control_packet(int file, const char *filename, int type)
     return 0;
 }
 
-int receive_control_packet(file_info* file_information)
+int receive_control_packet()
 {
     unsigned char control_packet[MAX_PAYLOAD_SIZE];
     if (llread(control_packet) == -1)
@@ -207,20 +220,21 @@ int receive_control_packet(file_info* file_information)
         return -1;
     }
 
-    file_information->fileSizeBytes= control_packet[2];
+    file_information.fileSizeBytes = control_packet[2];
 
-    for(unsigned int i = 0; i < file_information->fileSizeBytes; i++){
-        file_information->fileSize |= (control_packet[3+file_information->fileSizeBytes-i-1] << (8*(file_information->fileSizeBytes-i-1)));
+    for (unsigned int i = 0; i < file_information.fileSizeBytes; i++)
+    {
+        file_information.fileSize |= (control_packet[3 + file_information.fileSizeBytes - i - 1] << (8 * (file_information.fileSizeBytes - i - 1)));
     }
 
-    printf("File size: %d \n", file_information->fileSizeBytes);
-    printf("File size: %d bytes\n", file_information->fileSize);
+    printf("File size length: %d \n", file_information.fileSizeBytes);
+    printf("File size: %d bytes\n", file_information.fileSize);
 
-    file_information->filename=(char*)malloc(file_information->fileSize);  
+    file_information.fileNameSize = control_packet[3 + file_information.fileSizeBytes + 1];
+    file_information.filename = (char *)malloc(file_information.fileNameSize);
 
-    memcpy(file_information->filename, control_packet + 3 + file_information->fileSizeBytes + 2, file_information->fileNameSize);
-    printf("File name: %s\n", file_information->filename);
- 
+    memcpy(file_information.filename, control_packet + 3 + file_information.fileSizeBytes + 2, file_information.fileNameSize);
+    printf("File name: %s\n", file_information.filename);
 
     return 0;
 }

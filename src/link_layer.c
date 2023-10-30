@@ -59,7 +59,7 @@ int llopen(LinkLayer connectionParameters)
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 1; // Inter-character timer unused
+    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
     newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
@@ -177,7 +177,6 @@ int llwrite(const unsigned char *buf, int bufSize)
     unsigned attempts = nRetransmissions;
     while (attempts--)
     {
-
         puts("llwrite: Sending frame");
         if (write(fd, frame, frame_size) == -1)
         {
@@ -227,6 +226,7 @@ int llread(unsigned char *packet)
     state = START;
 
     puts("llread: Reading frame");
+
     while (state != STOP)
     {
         if (read(fd, &tx_buf, 1) > 0)
@@ -234,19 +234,19 @@ int llread(unsigned char *packet)
             switch (state)
             {
             case START:
-                puts("state: START");
+                // puts("START");
                 if (tx_buf == FLAG)
                     state = F;
                 break;
             case F:
-                puts("state: FLAG");
+                // puts("FLAG");
                 if (tx_buf == TX_ADD)
                     state = A;
                 else if (tx_buf != FLAG)
                     state = START;
                 break;
             case A:
-                puts("state: ADDRESS");
+                // puts("ADDRESS");
                 if (tx_buf == INF_FRAME_0 || tx_buf == INF_FRAME_1)
                 {
                     state = C;
@@ -258,7 +258,7 @@ int llread(unsigned char *packet)
                     state = START;
                 break;
             case C:
-                puts("state: CONTROL");
+                // puts("CONTROL");
                 if (tx_buf == ((control ^ TX_ADD) & 0xFF))
                     state = DATA;
                 else if (tx_buf == FLAG)
@@ -267,8 +267,8 @@ int llread(unsigned char *packet)
                     state = START;
                 break;
             case DATA:
-                // puts("State: DATA");
-                printf("Byte read: 0x%02X\n", tx_buf);
+                // puts("DATA");
+                // printf("Byte read: 0x%02X\n", tx_buf);
 
                 if (tx_buf == ESC_ESC)
                 {
@@ -299,7 +299,7 @@ int llread(unsigned char *packet)
                     {
                         state = STOP;
 
-                        printf("Current frame index: %d\n", frame_index);
+                        printf("\nCurrent frame index: %d\n", frame_index);
 
                         if (write_frame(fd, RX_ADD, frame_index == INF_FRAME_0 ? RR1 : RR0) < 0)
                         {
@@ -307,7 +307,6 @@ int llread(unsigned char *packet)
                             return -1;
                         }
                         frame_index = (frame_index == INF_FRAME_0) ? INF_FRAME_1 : INF_FRAME_0;
-                        printf("Packet size: %d\n", packet_size);
                         return packet_size;
                     }
                     else
