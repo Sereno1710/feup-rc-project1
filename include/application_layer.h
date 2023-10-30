@@ -18,10 +18,10 @@
 
 typedef struct
 {
-    size_t fileSizeBytes;
-    size_t fileSize;
-    size_t fileNameLen;
-    size_t filenameSize;
+    unsigned int fileSizeBytes;
+    unsigned  int fileSize;
+    unsigned int fileNameSize;
+    char *filename;
 } file_info;
 
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
@@ -29,5 +29,5 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
 int write_control_packet(int file, const char *filename, int type);
 
-int receive_control_packet(file_info *file, int type);
+int receive_control_packet(file_info *file);
 #endif // _APPLICATION_LAYER_H_
