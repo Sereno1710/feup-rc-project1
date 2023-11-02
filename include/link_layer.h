@@ -59,4 +59,6 @@ int get_llwrite_response(int fd, unsigned char *response);
 
 int write_frame(int fd, unsigned char A, unsigned char C);
 
+int odd_box(unsigned odd);
+
 #endif // _LINK_LAYER_H_

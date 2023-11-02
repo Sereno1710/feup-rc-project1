@@ -61,7 +61,7 @@ int llopen(LinkLayer connectionParameters)
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
     newtio.c_cc[VTIME] = 1; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
+    newtio.c_cc[VMIN] = 1;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -192,6 +192,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         puts("llwrite: Waiting for response");
         if (get_llwrite_response(fd, &response) == 0)
         {
+            printf("Response: 0x%02X\n", response);
             if (response == RR0 || response == RR1)
             {
                 alarm(0);
@@ -202,7 +203,6 @@ int llwrite(const unsigned char *buf, int bufSize)
             }
             else if (response == REJ0 || response == REJ1)
             {
-
                 puts("llwrite: REJ received");
                 continue;
             }
@@ -296,7 +296,7 @@ int llread(unsigned char *packet)
                         read_bcc2 ^= packet[i];
                     }
 
-                    if (read_bcc2 == bcc2)
+                    if (odd_box(10) && read_bcc2 == bcc2)
                     {
                         state = STOP;
 
@@ -318,7 +318,12 @@ int llread(unsigned char *packet)
                         perror("llread: Can't send REJ response");
                         return -1;
                     }
-                    perror("llread: reject message");
+                    else
+                    {
+                        puts("llread: Sent REJ response");
+                        return 0;
+                    }
+                    // perror("llread: reject message");
                     return -1;
                 }
                 else
@@ -501,22 +506,23 @@ int get_llwrite_response(int fd, unsigned char *response)
             perror("error: error reading frame");
             return 1;
         }
+        printf("0x%02X\n", rx_buf);
         switch (state)
         {
         case START:
-            // puts("state: START");
+            puts("state: START");
             if (rx_buf == FLAG)
                 state = F;
             break;
         case F:
-            // puts("state: F");
+            puts("state: F");
             if (rx_buf == RX_ADD)
                 state = A;
             else if (rx_buf != F)
                 state = START;
             break;
         case A:
-            // puts("state: A");
+            puts("state: A");
             if (rx_buf == RR0 || rx_buf == RR1 || rx_buf == REJ0 || rx_buf == REJ1)
             {
                 state = C;
@@ -528,7 +534,7 @@ int get_llwrite_response(int fd, unsigned char *response)
                 state = START;
             break;
         case C:
-            // puts("state: C");
+            puts("state: C");
             if ((rx_buf == (RX_ADD ^ *response)) & 0xFF)
                 state = BCC;
             else if (rx_buf == FLAG)
@@ -537,7 +543,7 @@ int get_llwrite_response(int fd, unsigned char *response)
                 state = START;
             break;
         case BCC:
-            // puts("state: BCC");
+            puts("state: BCC");
             if (rx_buf == FLAG)
             {
                 state = STOP;
@@ -561,4 +567,12 @@ int write_frame(int fd, unsigned char A, unsigned char C)
 {
     unsigned char buf[5] = {FLAG, A, C, A ^ C, FLAG};
     return write(fd, buf, 5);
+}
+
+int odd_box(unsigned odd)
+{
+    struct timespec t;
+    clock_gettime(0, &t);
+    srand((unsigned)t.tv_nsec);
+    return rand() % 100 <= odd;
 }

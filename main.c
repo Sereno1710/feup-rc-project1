@@ -8,7 +8,7 @@
 #include "application_layer.h"
 
 #define BAUDRATE 9600
-#define N_TRIES 5
+#define N_TRIES 10
 #define TIMEOUT 3
 
 // Arguments:

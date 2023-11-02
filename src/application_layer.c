@@ -47,7 +47,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         while (bytes_read > 0)
         {
             bytes_read = read(file, buffer + 3, buf_size);
-            sleep(1);
+            // sleep(1);
 
             if (bytes_read < 0)
             {
@@ -103,7 +103,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             llclose(0);
             return;
         }
-        puts("Start packet received");
+        puts("Start packet received\n");
 
         int file = open(file_information.filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
         if (file < 0)
@@ -157,7 +157,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 puts("Didn't receive anything");
             }
 
-            sleep(1);
+            // sleep(1);
         }
 
         puts("Receiving end packet");
@@ -214,17 +214,20 @@ int write_control_packet(int file, const char *filename, int type)
         llclose(0);
         return -1;
     }
+    puts("Start packet sent???");
     return 0;
 }
 
 int receive_control_packet()
 {
     unsigned char control_packet[MAX_PAYLOAD_SIZE];
+
     if (llread(control_packet) == -1)
     {
         perror("Error: Control Packet");
         return -1;
     }
+    puts("Start packet received???");
 
     file_information.fileSizeBytes = control_packet[2];
 
