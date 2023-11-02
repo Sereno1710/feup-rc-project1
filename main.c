@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "application_layer.h"
 
@@ -40,7 +41,10 @@ int main(int argc, char *argv[])
            TIMEOUT,
            filename);
 
+    time_t start = time(NULL);
     applicationLayer(serialPort, role, BAUDRATE, N_TRIES, TIMEOUT, filename);
+    time_t end = time(NULL);
+    printf("Elapsed time: %ld seconds\n", end - start);
 
     return 0;
 }

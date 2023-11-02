@@ -47,7 +47,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         while (bytes_read > 0)
         {
             bytes_read = read(file, buffer + 3, buf_size);
-            // sleep(1);
+            sleep(1);
 
             if (bytes_read < 0)
             {
@@ -66,6 +66,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 if (llwrite(buffer, bytes_read + 3) == -1)
                 {
                     perror("Error: llwrite\n");
+                    return;
                 }
             }
             else if (bytes_read == 0)
@@ -89,6 +90,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         puts("Calling llclose");
         llclose(0);
         close(file);
+        puts("Closed file");
     }
     else if (ll.role == LlRx)
     {
@@ -103,7 +105,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
         puts("Start packet received");
 
-        int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
+        int file = open(file_information.filename, O_WRONLY | O_CREAT | O_TRUNC, 0777);
         if (file < 0)
         {
             puts("Error: open file");
@@ -125,8 +127,12 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             if (bytes_read < 0)
             {
                 puts("Error: llread\n");
-                // llclose(0);
-                // return;
+            }
+            else if (bytes_read == -2)
+            {
+                puts("Error: attempt to disconnect\n");
+                llclose(0);
+                return;
             }
             else if (bytes_read > 0)
             {
@@ -151,7 +157,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 puts("Didn't receive anything");
             }
 
-            // sleep(1);
+            sleep(1);
         }
 
         puts("Receiving end packet");
@@ -231,9 +237,11 @@ int receive_control_packet()
     printf("File size: %d bytes\n", file_information.fileSize);
 
     file_information.fileNameSize = control_packet[3 + file_information.fileSizeBytes + 1];
-    file_information.filename = (char *)malloc(file_information.fileNameSize);
+    file_information.filename = (char *)malloc(file_information.fileNameSize + 9);
 
-    memcpy(file_information.filename, control_packet + 3 + file_information.fileSizeBytes + 2, file_information.fileNameSize);
+    memcpy(file_information.filename, control_packet + 3 + file_information.fileSizeBytes + 2, file_information.fileNameSize - 4);
+    char *received = "-received.gif";
+    memcpy(file_information.filename + file_information.fileNameSize - 4, received, 13);
     printf("File name: %s\n", file_information.filename);
 
     return 0;

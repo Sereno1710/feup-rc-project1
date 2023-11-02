@@ -14,7 +14,8 @@ TX_SERIAL_PORT = /dev/ttyS10
 RX_SERIAL_PORT = /dev/ttyS11
 
 TX_FILE = penguin.gif
-RX_FILE = penguin-received.gif
+RX_FILE = test.gif
+# RX_FILE = penguin-received.gif
 
 # Targets
 .PHONY: all
